@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Key gratis · VantArmor</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9678380836418099" crossorigin="anonymous"></script>
+<style>
+  :root { --bg:#000; --card:#0d0d0d; --line:#262626; --text:#fff; --muted:#8a8a8a; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; display:flex; justify-content:center; padding:24px 16px; }
+  .wrap { width:100%; max-width:420px; display:flex; flex-direction:column; gap:14px; }
+  .brand { display:flex; align-items:center; gap:10px; }
+  .brand img { width:36px; height:36px; border-radius:10px; border:1px solid #333; }
+  .brand span { font-weight:800; letter-spacing:2px; font-size:12px; text-transform:uppercase; color:var(--muted); }
+  h1 { font-size:26px; margin:6px 0 0; letter-spacing:-.5px; font-weight:800; }
+  .sub { color:var(--muted); font-size:14px; line-height:1.5; margin:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; }
+  .progress { display:flex; gap:6px; }
+  .progress i { flex:1; height:6px; border-radius:6px; background:#222; }
+  .progress i.on { background:#fff; }
+  .ad-slot { min-height:250px; border:1px dashed #333; border-radius:12px; display:grid; place-items:center; color:#666; font-size:13px; text-align:center; padding:12px; margin:14px 0; background:#060606; overflow:hidden; }
+  .timer { color:var(--muted); font-size:13px; text-align:center; margin-bottom:12px; min-height:17px; }
+  .btn { width:100%; border:0; border-radius:14px; padding:15px; font-size:15px; font-weight:800; letter-spacing:.4px; color:#000; background:#fff; cursor:pointer; text-transform:uppercase; }
+  .btn:disabled { opacity:.35; cursor:not-allowed; }
+  .btn.ghost { background:transparent; color:#fff; border:1px solid #444; margin-top:10px; }
+  .plans { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+  .plans .btn small { display:block; font-size:11px; font-weight:600; margin-top:4px; opacity:.7; text-transform:none; }
+  .keybox { font-family:ui-monospace,Menlo,monospace; font-size:14px; word-break:break-all; background:#060606; border:1px solid #333; border-radius:12px; padding:14px; margin-top:10px; }
+  .meta { color:var(--muted); font-size:13px; margin-top:10px; }
+  .err { color:#fca5a5; font-size:13px; min-height:18px; margin-top:10px; }
+  .link { background:none; border:0; color:var(--muted); font-size:13px; text-decoration:underline; cursor:pointer; padding:0; margin-top:10px; }
+  .countdown { font-size:44px; font-weight:800; letter-spacing:1px; text-align:center; font-variant-numeric:tabular-nums; margin:18px 0 6px; }
+  .hidden { display:none !important; }
+</style>
+<!-- NAVIDAD: borrar esta línea al terminar la temporada -->
+<script src="/navidad.js" defer></script>
+<link rel="stylesheet" href="/motion.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><img src="/favicon-192.png" alt="V"><span>VantArmor</span></div>
+  <h1>Key gratis</h1>
+  <p class="sub" id="intro">Elige un plan. Cada anuncio que veas suma al contador; al completar la cantidad de tu plan se te entrega la key de 1 día.</p>
+
+  <!-- Paso 1: elegir plan -->
+  <div class="card hidden" id="stepPlan">
+    <p class="sub" style="color:#fff;">¿Qué plan quieres probar?</p>
+    <div class="plans">
+      <button class="btn" data-plan="premium">Premium<small>7 anuncios</small></button>
+      <button class="btn" data-plan="plus">Plus<small>14 anuncios</small></button>
+    </div>
+  </div>
+
+  <!-- Paso 2: anuncios -->
+  <div class="card hidden" id="stepAds">
+    <p class="sub" style="color:#fff;" id="adsTitle"></p>
+    <div class="progress" id="prog" style="margin-top:12px;"></div>
+    <div class="ad-slot" id="adSlot"></div>
+    <div class="timer" id="timer"></div>
+    <button class="btn" id="nextBtn" disabled>Continuar</button>
+    <button class="link" id="changePlan">Cambiar de plan</button>
+    <div class="err" id="errAds"></div>
+  </div>
+
+  <!-- Plan activo: solo temporizador -->
+  <div class="card hidden" id="stepKey">
+    <p class="sub" style="color:#fff;" id="keyTitle">Plan activo</p>
+    <p class="sub" style="margin-top:6px;">Tu key se asignó automáticamente a tu cuenta.</p>
+    <div class="countdown" id="countdown">--:--:--</div>
+    <div class="meta" id="keyMeta"></div>
+  </div>
+
+  <div class="err" id="errTop"></div>
+</div>
+
+<script>
+  // Espacio de anuncio: banner 300x250 de Adsterra (tiene prioridad). Si está vacío, se usa AdSense.
+  const ADSTERRA_300_KEY = '2670e732be1b87c93036622776971e50';
+  const ADSENSE_CLIENT = 'ca-pub-9678380836418099';
+  const ADSENSE_SLOT = '';
+  const REQUIRED = { premium: 7, plus: 14 };
+  const WAIT_SECONDS = 15;
+
+  const $ = id => document.getElementById(id);
+  let watched = 0, need = 0, plan = null, timerId = null;
+
+  async function api(path, opts = {}) {
+    const headers = opts.body ? { 'Content-Type': 'application/json' } : {};
+    const res = await fetch(path, { credentials: 'include', ...opts, headers });
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
+    if (!res.ok) { const e = new Error((data && data.error) || 'Error ' + res.status); e.status = res.status; e.data = data; throw e; }
+    return data;
+  }
+
+  function show(id) {
+    ['stepPlan', 'stepAds', 'stepKey'].forEach(s => $(s).classList.toggle('hidden', s !== id));
+  }
+
+  function renderProgress() {
+    $('prog').innerHTML = Array.from({ length: need }, (_, i) => `<i class="${i < watched ? 'on' : ''}"></i>`).join('');
+    $('adsTitle').textContent = `Plan ${plan === 'plus' ? 'Plus' : 'Premium'}: ${watched} de ${need} anuncios`;
+  }
+
+  function mountAd() {
+    const slot = $('adSlot');
+    slot.innerHTML = '';
+    if (ADSTERRA_300_KEY) {
+      const cfg = document.createElement('script');
+      cfg.textContent = "atOptions = { 'key' : '" + ADSTERRA_300_KEY + "', 'format' : 'iframe', 'height' : 250, 'width' : 300, 'params' : {} };";
+      const lib = document.createElement('script');
+      lib.src = 'https://bauval.org/22/' + ADSTERRA_300_KEY;
+      slot.appendChild(cfg);
+      slot.appendChild(lib);
+      return;
+    }
+    if (ADSENSE_CLIENT && ADSENSE_SLOT) {
+      slot.innerHTML = `<ins class="adsbygoogle" style="display:block;width:100%" data-ad-client="${ADSENSE_CLIENT}" data-ad-slot="${ADSENSE_SLOT}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+      try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (_) {}
+      return;
+    }
+    slot.textContent = 'Espacio de anuncio (pendiente de configurar)';
+  }
+
+  function startWait() {
+    clearInterval(timerId);
+    let left = WAIT_SECONDS;
+    $('nextBtn').disabled = true;
+    $('timer').textContent = `Espera ${left} s para continuar`;
+    mountAd();
+    timerId = setInterval(() => {
+      left--;
+      if (left <= 0) {
+        clearInterval(timerId);
+        $('timer').textContent = '';
+        $('nextBtn').disabled = false;
+      } else {
+        $('timer').textContent = `Espera ${left} s para continuar`;
+      }
+    }, 1000);
+  }
+
+  function goAds() {
+    need = REQUIRED[plan];
+    $('errAds').textContent = '';
+    show('stepAds');
+    renderProgress();
+    if (watched >= need) return claim();
+    startWait();
+  }
+
+  async function nextAd() {
+    $('errAds').textContent = '';
+    $('nextBtn').disabled = true;
+    try {
+      const data = await api('/api/free-keys/ad-watched', { method: 'POST', body: '{}' });
+      watched = data.watched;
+      renderProgress();
+      if (watched >= need) return claim();
+      startWait();
+    } catch (e) {
+      $('errAds').textContent = e.message;
+      $('nextBtn').disabled = false;
+    }
+  }
+
+  async function claim() {
+    clearInterval(timerId);
+    $('timer').textContent = '';
+    $('nextBtn').disabled = true;
+    try {
+      const data = await api('/api/free-keys/claim', { method: 'POST', body: JSON.stringify({ plan }) });
+      showKey({ plan, key: data.key, expires_at: data.expires_at });
+    } catch (e) {
+      if (e.data && e.data.code === 'AD_REQUIRED') {
+        watched = e.data.watched;
+        goAds();
+      } else {
+        $('errAds').textContent = e.message;
+      }
+    }
+  }
+
+  let countTimer = null;
+  function showKey(data) {
+    show('stepKey');
+    $('keyTitle').textContent = 'Plan ' + (data.plan === 'plus' ? 'Plus' : 'Premium') + ' activo';
+    const exp = new Date(data.expires_at * 1000);
+    $('keyMeta').textContent = 'Vence: ' + exp.toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' });
+    clearInterval(countTimer);
+    const tick = () => {
+      const left = Math.max(0, Math.floor(data.expires_at - Date.now() / 1000));
+      if (left === 0) { clearInterval(countTimer); $('countdown').textContent = '0:00:00'; setTimeout(() => location.reload(), 1500); return; }
+      const h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), sec = left % 60;
+      $('countdown').textContent = h + ':' + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+    };
+    tick();
+    countTimer = setInterval(tick, 1000);
+  }
+
+  async function init() {
+    try {
+      const keys = await api('/api/free-keys');
+      const current = keys.find(k => !k.expired);
+      if (current) return showKey({ plan: current.plan, key: current.key, expires_at: current.expires_at });
+      show('stepPlan');
+    } catch (e) {
+      if (e.status === 401) { location.href = '/login'; return; }
+      $('errTop').textContent = e.message;
+      show('stepPlan');
+    }
+  }
+
+  document.querySelectorAll('[data-plan]').forEach(b => b.addEventListener('click', async () => {
+    plan = b.dataset.plan;
+    try {
+      const st = await api('/api/free-keys/ad-reset', { method: 'POST', body: '{}' });
+      watched = st.watched;
+    } catch (e) { $('errTop').textContent = e.message; return; }
+    goAds();
+  }));
+  $('nextBtn').addEventListener('click', nextAd);
+  $('changePlan').addEventListener('click', () => { clearInterval(timerId); show('stepPlan'); });
+  init();
+</script>
+  <div id="native-ad" class="native-ad" style="max-width:720px;margin:28px auto 8px;padding:0 16px;box-sizing:border-box" aria-label="Publicidad"></div>
+  <script src="/ads-native.js" defer></script>
+</body>
+</html>

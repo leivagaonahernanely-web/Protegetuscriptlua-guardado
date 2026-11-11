@@ -1,0 +1,227 @@
+// Panel admin (servicio aparte en Railway). No tiene base de datos propia:
+// pide todo al servidor principal con ADMIN_API_TOKEN, así que no necesita volumen.
+import express from 'express';
+import cookieParser from 'cookie-parser';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const {
+  PORT = 3001,
+  ADMIN_PASSWORD,
+  ADMIN_SESSION_SECRET,
+  ADMIN_API_TOKEN,
+  MAIN_API_URL = 'https://vantarmor.up.railway.app',
+} = process.env;
+
+if (!ADMIN_PASSWORD || !ADMIN_SESSION_SECRET || !ADMIN_API_TOKEN) {
+  console.error('[Admin] Faltan ADMIN_PASSWORD, ADMIN_SESSION_SECRET o ADMIN_API_TOKEN.');
+  process.exit(1);
+}
+
+const COOKIE = 'vantarmor_admin';
+const cookieOpts = { httpOnly: true, secure: true, sameSite: 'strict', maxAge: 8 * 3600 * 1000 };
+
+const app = express();
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+app.use(express.json({ limit: '50kb' }));
+app.use(cookieParser());
+
+app.use((req, res, next) => {
+  res.set({
+    'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.discordapp.com; connect-src 'self'",
+    'X-Frame-Options': 'DENY',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  });
+  next();
+});
+
+// Comparación en tiempo constante (con hash para que las longitudes coincidan)
+function same(a, b) {
+  const h = s => crypto.createHash('sha256').update(String(s)).digest();
+  return crypto.timingSafeEqual(h(a), h(b));
+}
+
+// Máximo 10 intentos fallidos por IP cada 15 minutos
+const attempts = new Map();
+function tooManyAttempts(ip) {
+  const a = attempts.get(ip);
+  if (!a) return false;
+  if (Date.now() - a.since > 15 * 60_000) { attempts.delete(ip); return false; }
+  return a.count >= 10;
+}
+
+function requireSession(req, res, next) {
+  try {
+    jwt.verify(req.cookies[COOKIE] || '', ADMIN_SESSION_SECRET);
+    return next();
+  } catch {
+    return res.status(401).json({ error: 'Admin session required' });
+  }
+}
+
+app.get('/', (req, res) => res.redirect('/admin'));
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+app.post('/admin/login', (req, res) => {
+  const ip = req.ip;
+  if (tooManyAttempts(ip)) return res.status(429).json({ error: 'Too many attempts. Wait 15 minutes.' });
+  if (!same(req.body?.password ?? '', ADMIN_PASSWORD)) {
+    const a = attempts.get(ip) ?? { count: 0, since: Date.now() };
+    a.count++;
+    attempts.set(ip, a);
+    return res.status(401).json({ error: 'Wrong password' });
+  }
+  attempts.delete(ip);
+  const token = jwt.sign({ admin: true }, ADMIN_SESSION_SECRET, { expiresIn: '8h' });
+  res.cookie(COOKIE, token, cookieOpts);
+  res.json({ ok: true });
+});
+
+app.post('/admin/logout', (req, res) => {
+  res.clearCookie(COOKIE, cookieOpts);
+  res.json({ ok: true });
+});
+
+app.get('/admin/session', requireSession, (req, res) => res.json({ ok: true }));
+
+// Versión que corre el sitio principal (commit de Railway y motor de Ofuscador 4), para verificar deploys
+app.get('/admin/version', requireSession, async (req, res) => {
+  try {
+    const out = await fetch(`${MAIN_API_URL}/api/version`, { signal: AbortSignal.timeout(8000) });
+    if (!out.ok) return res.status(502).json({ error: `HTTP ${out.status}` });
+    res.json(await out.json());
+  } catch (err) {
+    res.status(502).json({ error: err.message || 'No responde' });
+  }
+});
+
+// Solo estas rutas del servidor principal se reenvían (lista cerrada)
+const ALLOWED = {
+  'plan-keys': { GET: '/plan-keys', POST: '/plan-keys' },
+  'custom-requests': { GET: '/custom-requests' },
+  users: { GET: '/users' },
+  publisher: { GET: '/publisher' },
+  logs: { GET: '/logs' },
+  channels: { GET: '/channels' },
+  obfuscators: { GET: '/obfuscators' },
+  announce: { POST: '/announce' },
+  overview: { GET: '/overview' },
+  servers: { GET: '/servers' },
+  'loader-downloads': { GET: '/loader-downloads' },
+  settings: { POST: '/settings' },
+  broadcast: { GET: '/broadcast', POST: '/broadcast' },
+  'serve-protected': { POST: '/serve-protected' },
+  compact: { POST: '/compact' },
+};
+
+async function forward(res, method, route, body) {
+  try {
+    const out = await fetch(`${MAIN_API_URL}/api/owner${route}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${ADMIN_API_TOKEN}`,
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(15_000),
+    });
+    const data = await out.json().catch(() => ({}));
+    res.status(out.status).json(data);
+  } catch {
+    res.status(502).json({ error: 'Could not reach the main server' });
+  }
+}
+
+// Respaldo de la base: se reenvía el archivo tal cual (no como JSON)
+app.get('/admin/api/backup', requireSession, async (req, res) => {
+  try {
+    const out = await fetch(`${MAIN_API_URL}/api/owner/backup`, {
+      headers: { Authorization: `Bearer ${ADMIN_API_TOKEN}` },
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!out.ok) {
+      const body = await out.json().catch(() => ({}));
+      return res.status(out.status).json({ error: body.error || 'No se pudo crear el respaldo', detail: body.detail || null });
+    }
+    res.set('Content-Type', 'application/octet-stream');
+    res.set('Content-Disposition', out.headers.get('content-disposition') || 'attachment; filename="vantarmor.db"');
+    res.send(Buffer.from(await out.arrayBuffer()));
+  } catch {
+    res.status(502).json({ error: 'Could not reach the main server' });
+  }
+});
+
+app.get('/admin/api/:resource', requireSession, (req, res) => {
+  const route = ALLOWED[req.params.resource]?.GET;
+  if (!route) return res.status(404).json({ error: 'No existe' });
+  // Solo se reenvían los filtros de logs, con su nombre fijo
+  let qs = '';
+  if (req.params.resource === 'logs') {
+    const params = new URLSearchParams();
+    for (const k of ['limit', 'scriptId', 'from', 'to']) {
+      const v = req.query[k];
+      if (typeof v === 'string' && /^\d{1,12}$/.test(v)) params.set(k, v);
+    }
+    qs = params.toString() ? `?${params}` : '';
+  }
+  forward(res, 'GET', route + qs);
+});
+
+app.post('/admin/api/users/:id/plan', requireSession, (req, res) => {
+  forward(res, 'POST', `/users/${encodeURIComponent(req.params.id)}/plan`, req.body);
+});
+
+app.post('/admin/api/users/:id/reset-quota', requireSession, (req, res) => {
+  forward(res, 'POST', `/users/${encodeURIComponent(req.params.id)}/reset-quota`, {});
+});
+
+app.post('/admin/api/users/:id/staff', requireSession, (req, res) => {
+  forward(res, 'POST', `/users/${encodeURIComponent(req.params.id)}/staff`, req.body);
+});
+
+app.get('/admin/api/custom-requests', requireSession, (req, res) => {
+  forward(res, 'GET', '/custom-requests', undefined);
+});
+app.post('/admin/api/custom-requests/:id/:action', requireSession, (req, res) => {
+  if (!['approve', 'reject'].includes(req.params.action)) return res.status(404).json({ error: 'No encontrado' });
+  forward(res, 'POST', `/custom-requests/${encodeURIComponent(req.params.id)}/${req.params.action}`, {});
+});
+
+app.delete('/admin/api/plan-keys/:key', requireSession, (req, res) => {
+  forward(res, 'DELETE', `/plan-keys/${encodeURIComponent(req.params.key)}`, undefined);
+});
+app.post('/admin/api/plan-keys/:key/:action', requireSession, (req, res) => {
+  if (!['extend', 'revoke'].includes(req.params.action)) return res.status(404).json({ error: 'No encontrado' });
+  forward(res, 'POST', `/plan-keys/${encodeURIComponent(req.params.key)}/${req.params.action}`, req.body || {});
+});
+
+// Restaurar una copia: el archivo se reenvía tal cual al servidor principal
+app.post('/admin/api/import-db', requireSession, express.raw({ type: () => true, limit: '300mb' }), async (req, res) => {
+  try {
+    const out = await fetch(`${MAIN_API_URL}/api/owner/import-db`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${ADMIN_API_TOKEN}`, 'Content-Type': 'application/octet-stream' },
+      body: req.body,
+      signal: AbortSignal.timeout(120_000),
+    });
+    res.status(out.status).json(await out.json().catch(() => ({ error: 'Respuesta inválida del servidor principal' })));
+  } catch {
+    res.status(502).json({ error: 'No se pudo contactar al servidor principal' });
+  }
+});
+
+app.post('/admin/api/:resource', requireSession, (req, res) => {
+  const route = ALLOWED[req.params.resource]?.POST;
+  if (!route) return res.status(404).json({ error: 'No existe' });
+  forward(res, 'POST', route, req.body);
+});
+
+app.listen(PORT, () => {
+  console.log(`[Admin] Panel en el puerto ${PORT}. Servidor principal: ${MAIN_API_URL}`);
+});

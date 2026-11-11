@@ -1,0 +1,20 @@
+{
+  "name": "vantarmor-web",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/quota.test.js tests/perf.test.js tests/sql-translate.test.js tests/db-bridge.test.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "jsonwebtoken": "^9.0.2",
+    "better-sqlite3": "^11.3.0",
+    "geoip-lite": "^1.4.10",
+    "pg": "^8.16.3"
+  }
+}
