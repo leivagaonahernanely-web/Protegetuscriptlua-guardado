@@ -9,22 +9,20 @@
   };
   const PLAN_LABELS = { free: 'Free', premium: 'Premium', plus: 'Premium Plus', custom: 'Custom' };
   const OBFUSCATORS = {
-    real:       'Ofuscador 1 · recomendado',
-    obscura:    'Ofuscador 2',
-    luau:       'Ofuscador 3 · Premium Plus · 2 compilaciones por día',
-    next:       'Ofuscador 4 · NextOfuscator',
-    none:       'Sin ofuscar (solo key)',
+    luau:       'Vanta Obfuscation · Próximamente',
+    next:       'Ofuscador 4 · NextOfuscator · recomendado',
+    vantobf:    'Ofuscador 5 · VantVM',
+    none:       'No obf',
   };
   const NAV = {
     dashboard: { title: 'Dashboard', sub: 'Resumen de tu cuenta' },
-    profile:   { title: 'Perfil', sub: 'Foto de perfil y foto del bot en tu servidor' },
+    profile:    { title: 'Ajustes', sub: 'Tu cuenta: fotos y tema del panel' },
     precios:   { title: 'Precios', sub: 'Publica tu tabla de precios en tu servidor (solo planes pagos)' },
     bienvenida: { title: 'Bienvenida', sub: 'Mensaje para nuevos miembros de tu servidor (solo Premium Plus)' },
-    scripts:   { title: 'Scripts',   sub: 'Código, protección y loader de cada script' },
-    projects:  { title: 'Proyectos', sub: 'Agrupa tus scripts. La whitelist por proyecto aplica a todos sus scripts' },
+    scripts:   { title: 'Proyectos', sub: 'Crea un proyecto y dentro de él tus scripts; keys por script o por proyecto' },
     keys:      { title: 'Keys',      sub: 'Licencias generadas' },
     blacklist: { title: 'Blacklist', sub: 'Bloquea usuarios de Discord, IPs o HWID en tus scripts' },
-    chat:      { title: 'Chat',      sub: 'Chat de la comunidad de Vantarmor' },
+    rewards:   { title: 'Recompensas', sub: 'Canjea códigos y gana keys para tus scripts' },
     plans:     { title: 'Planes',    sub: 'Elige el plan que necesitas' },
     soporte:   { title: 'Soporte',   sub: 'Preguntas frecuentes y tus tickets' },
     stats: { title: 'Estadísticas', sub: 'Ejecuciones de tus scripts y de dónde vienen' },
@@ -58,6 +56,7 @@
   }[c]));
   const isMobile = () => window.matchMedia('(max-width: 1023px)').matches;
   const scriptName = id => scripts.find(s => s.id === id)?.name || 'Desconocido';
+  const projectName = id => projects.find(p => String(p.id) === String(id))?.name || '';
   const maskKey = key => key.length > 16 ? `${key.slice(0, 12)}…${key.slice(-4)}` : key;
   const fmtDate = ts => ts
     ? new Date(ts * 1000).toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -86,8 +85,8 @@
 
   // Protección del script: 'ffa' (sin key) o 'protected' (con key y ofuscador)
   const protectionOf = s => (s.ffa ? 'ffa' : 'protected');
-  // Scripts viejos con Clyde se muestran como Ofuscador 1 al editarlos: al guardar se regeneran con ese
-  const obfuscatorOf = s => (OBFUSCATORS[s.obfuscator] ? s.obfuscator : 'real');
+  // Scripts viejos (Clyde, Ofuscador 1 y 2) se muestran como Ofuscador 4 al editarlos: al guardar se regeneran con ese
+  const obfuscatorOf = s => (OBFUSCATORS[s.obfuscator] ? s.obfuscator : 'next');
 
   async function api(path, opts = {}) {
     const headers = opts.body ? { 'Content-Type': 'application/json' } : {};
@@ -146,6 +145,7 @@
 
   const OWNER_VIEWS = new Set(['ownerpanel', 'planskeys', 'publisher', 'users']);
   function showView(name) {
+    if (name === 'precios' || name === 'bienvenida') name = 'scripts';
     if (OWNER_VIEWS.has(name) && !(user && user.owner)) name = 'dashboard';
     try { localStorage.setItem('vm_view', name); } catch (_) {}
     document.querySelectorAll('.nav-item[data-nav]').forEach(b => {
@@ -156,15 +156,16 @@
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.dataset.view === name));
     if (name === 'soporte') loadSupport();
     if (name === 'stats') { loadExecStats(); }
-    if (name === 'profile' && hasPerkPlan()) { loadWebhooks(); loadActivity(); }
+    if (name === 'profile' && hasPerkPlan()) { loadWebhooks(); }
     $('pageTitle').firstChild.textContent = NAV[name].title;
     $('pageSub').textContent = NAV[name].sub;
     if (name === 'profile') renderProfile();
+    if (name === 'rewards') loadRewards();
     if (name === 'precios') loadPricesForm();
     if (name === 'bienvenida') loadWelcomeForm();
-    if (name === 'chat') startChatPolling(); else stopChatPolling();
+    stopChatPolling();
     if (name === 'blacklist') loadBlacklist();
-    if (name === 'projects') loadProjects();
+    if (name === 'scripts') loadProjects();
     if (isMobile()) setSidebar(false);
   }
 
@@ -343,6 +344,10 @@
           <span class="hint" id="fFileName">o pega el código abajo</span>
         </div>
         <textarea id="fCode" class="textarea" spellcheck="false" placeholder="-- Pega aquí tu script Lua">${esc(initial)}</textarea>
+        <div class="input-group" style="margin-top:12px">
+          <label for="fInit">Código pre-auth (opcional)</label>
+          <textarea id="fInit" name="initCode" class="textarea" spellcheck="false" style="min-height:90px" placeholder="-- Corre en el loader ANTES de la autenticación, sin ofuscar (ej: interfaz para pedir la key). En edición: dejar vacío mantiene el actual."></textarea>
+        </div>
         <div class="code-meta"><span id="fCodeSize">0 KB de 2 MB</span></div>
         <div id="perfPanel" class="perf" hidden></div>
       </div>`;
@@ -363,7 +368,7 @@
     const seq = ++perfSeq;
     const body = {
       source,
-      obfuscator: $('fObf')?.value || 'real',
+      obfuscator: $('fObf')?.value || 'next',
       clydeVm: $('vmGroup')?.querySelector('input')?.checked ?? true,
     };
     try {
@@ -380,11 +385,17 @@
         <span class="perf-stats">${plural(r.loops, 'bucle', 'bucles')} · ${plural(r.hot, 'callback por frame', 'callbacks por frame')}</span>
       </div>`;
     if (!r.findings.length) return `${head}<p class="perf-ok">Sin problemas detectados en el código.</p>`;
+    const linesTxt = f => {
+      if (f.count === 1) return `línea ${f.line}`;
+      const shown = f.lines.slice(0, 6).join(', ');
+      const extra = f.lines.length > 6 ? ` y ${f.lines.length - 6} más` : '';
+      return `líneas ${shown}${extra}`;
+    };
     const items = r.findings.map(f => `
       <li>
         <span class="perf-sev ${f.severity}">${SEV_LABEL[f.severity]}</span>
         <div>
-          <div class="perf-title">${esc(f.title)} <span class="perf-line">línea ${f.line}</span></div>
+          <div class="perf-title">${esc(f.title)}${f.count > 1 ? ` ×${f.count}` : ''} <span class="perf-line">${linesTxt(f)}</span></div>
           <div class="perf-tip">${esc(f.tip)}</div>
         </div>
       </li>`).join('');
@@ -418,7 +429,8 @@
   // Selector de protección: FFA o Protegido, y si es Protegido, el ofuscador
   function protectionHtml(s = {}) {
     const current = s.ffa === undefined ? 'protected' : protectionOf(s);
-    const currentObf = s.id ? obfuscatorOf(s) : 'real';
+    const currentObf = s.id ? obfuscatorOf(s) : 'next';
+    const mode = s.obf_mode || 'medium';
     return `
       <div class="input-group">
         <span class="label">Protección</span>
@@ -437,9 +449,27 @@
         <label for="fObf">Ofuscador</label>
         <select id="fObf" name="obfuscator" class="field block">
           ${Object.entries(OBFUSCATORS).map(([val, label]) =>
-            `<option value="${val}" ${val === currentObf ? 'selected' : ''} ${val === 'luau' && !hasPlusPlan() ? 'disabled' : ''}>${label}</option>`).join('')}
+            `<option value="${val}"${val === 'luau' ? ' disabled' : ''} ${val === currentObf ? 'selected' : ''}>${label}</option>`).join('')}
         </select>
-        <div class="hint">Se aplica en el servidor al guardar el script. Para Roblox (Luau) recomendamos el Ofuscador 1.</div>
+        <div class="hint">Se aplica en el servidor al guardar el script. Para Roblox (Luau) recomendamos el Ofuscador 4.</div>
+        <div id="obfModeWrap" hidden style="margin-top:10px">
+          <span class="label">Modo de protección</span>
+          <div class="choice-grid" style="grid-template-columns:repeat(3,1fr);margin-top:6px">
+            <label class="choice">
+              <input type="radio" name="obfMode" value="low" ${mode === 'low' ? 'checked' : ''}>
+              <span><b>Bajo</b><small>Más rápido y liviano</small></span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="obfMode" value="medium" ${mode !== 'low' && mode !== 'high' ? 'checked' : ''}>
+              <span><b>Medio</b><small>Equilibrio (recomendado)</small></span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="obfMode" value="high" ${mode === 'high' ? 'checked' : ''}>
+              <span><b>Alto</b><small>Máxima protección</small></span>
+            </label>
+          </div>
+          <div class="hint">Doble capa de cifrado y nombres únicos por script en Alto. Cualquier executor lo corre igual (Delta, Roblox, etc.).</div>
+        </div>
         <label id="vmGroup" style="display:flex;gap:10px;align-items:flex-start;margin-top:12px;cursor:pointer">
           <input type="checkbox" name="clydeVm" ${s.clyde_vm ? 'checked' : ''} style="margin-top:3px">
           <span><b>Máquina virtual</b><small style="display:block;color:var(--text-soft)">Más protección, pero puede bajar los FPS del juego. Solo aplica al Ofuscador 1.</small></span>
@@ -482,7 +512,10 @@
       const isProtected = document.querySelector('input[name="protection"]:checked')?.value === 'protected';
       // El ofuscador se elige en FFA y en protegido; el reinicio de HWID solo aplica a protegido
       $('hwidGroup').hidden = !isProtected;
-      $('macroBtn').hidden = $('fObf').value !== 'luau';
+      const isVant = $('fObf').value === 'vantobf';
+      $('obfModeWrap').hidden = !isVant;
+      $('macroBtn').hidden = !isVant && $('fObf').value !== 'luau';
+      $('macroBtn').textContent = isVant ? 'Macros de rendimiento (Ofuscador 5)' : 'Macros de rendimiento (Ofuscador 3)';
         $('vmGroup').hidden = true; // la máquina virtual ya no se ofrece
       const vmOn = $('vmGroup').querySelector('input')?.checked;
       const hot = hotRanges($('fCode')?.value || '').length > 0;
@@ -497,12 +530,24 @@
     sync();
   }
 
-  function openScriptModal() {
+  function openScriptModal(preProject = '') {
     openModal('Nuevo script', `
       <form id="formScript" novalidate>
         <div class="input-group">
           <label for="fName">Nombre</label>
           <input id="fName" name="name" class="field block" required maxlength="60" autocomplete="off">
+        </div>
+        <div class="input-group">
+          <label for="fVersion">Versión</label>
+          <input id="fVersion" name="version" class="field block" maxlength="24" placeholder="1.0.0" autocomplete="off">
+          <div class="hint">Se muestra en la columna Versión del proyecto (ej.: 1.0.0)</div>
+        </div>
+        <div class="input-group">
+          <label for="fProject">Proyecto</label>
+          <select id="fProject" name="projectId" class="field block" required>
+            ${projects.map(p => `<option value="${esc(p.id)}" ${String(p.id) === String(preProject) ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+          </select>
+          ${projects.length ? '' : '<div class="hint">Crea primero un proyecto: cada script vive dentro de uno.</div>'}
         </div>
         ${codeFieldHtml()}
         ${protectionHtml()}
@@ -527,12 +572,13 @@
           <label for="fName">Nombre</label>
           <input id="fName" name="name" class="field block" required maxlength="60" value="${esc(s.name)}" autocomplete="off">
         </div>
+        <div class="input-group">
+          <label for="fVersion">Versión</label>
+          <input id="fVersion" name="version" class="field block" maxlength="24" placeholder="1.0.0" value="${esc(s.version || '')}" autocomplete="off">
+          <div class="hint">Se muestra en la columna Versión del proyecto (ej.: 1.0.0)</div>
+        </div>
         ${codeFieldHtml()}
         ${protectionHtml(s)}
-        <details class="ver-box">
-          <summary>Historial de versiones</summary>
-          <div id="verList" class="ver-list"></div>
-        </details>
         <div class="form-actions">
           <button type="button" class="btn ghost" data-close>Cancelar</button>
           <button type="submit" class="btn">Guardar cambios</button>
@@ -541,62 +587,25 @@
     wireCodeField();
     wireProtection();
     $('formEditScript').addEventListener('submit', e => submitScript(e, s.id));
-    $('verList').addEventListener('click', async e => {
-      const b = e.target.closest('[data-ver-load]');
-      if (!b) return;
-      setBusy(b, true);
-      try {
-        const v = await api(`/api/scripts/${encodeURIComponent(b.dataset.verScript)}/versions/${encodeURIComponent(b.dataset.verLoad)}`);
-        $('fCode').value = v.source;
-        $('fCode').dispatchEvent(new Event('input'));
-        toast('Versión cargada en el editor. Revisa y guarda para aplicarla.');
-      } catch (err) {
-        toast(err.message, 'error');
-      } finally {
-        setBusy(b, false);
-      }
-    });
-    loadVersions(s.id);
   }
 
-  async function loadVersions(scriptId) {
-    const box = $('verList');
-    if (!box) return;
-    box.innerHTML = '<p class="hint">Cargando versiones…</p>';
-    try {
-      const list = await api(`/api/scripts/${encodeURIComponent(scriptId)}/versions`);
-      if (!list.length) {
-        box.innerHTML = '<p class="hint">Aún no hay versiones. Se guarda una cada vez que cambias el código.</p>';
-        return;
-      }
-      box.innerHTML = list.map(v => `
-        <div class="ver-row">
-          <div class="ver-meta">
-            <b>${esc(v.name)}</b>
-            <span class="hint">${new Date(v.created_at * 1000).toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' })} · ${esc(OBFUSCATORS[v.obfuscator] ?? v.obfuscator)} · <span class="mono">${esc(String(v.source_hash).slice(0, 12))}</span></span>
-          </div>
-          <button type="button" class="btn ghost sm" data-ver-load="${esc(v.id)}" data-ver-script="${esc(scriptId)}">Cargar en el editor</button>
-        </div>`).join('');
-    } catch (err) {
-      box.innerHTML = `<p class="hint">${esc(err.message)}</p>`;
-    }
-  }
-
-  function openKeysModal(preselect = '') {
-    if (!scripts.length) { toast('Crea un script primero', 'error'); return; }
+  function openKeysModal(preselect = '', projectMode = null) {
+    if (!projectMode && !scripts.length) { toast('Crea un script primero', 'error'); return; }
     const DUR_OPTS = [['', 'Nunca'], ['3600', '1 hora'], ['21600', '6 horas'], ['86400', '1 día'], ['604800', '7 días'],
       ['1296000', '15 días'], ['2592000', '30 días'], ['7776000', '90 días'], ['31536000', '1 año'], ['custom', 'Personalizado']];
     const UNIT_SECONDS = { horas: 3600, dias: 86400, meses: 2592000, anios: 31536000 };
     const MAX_KEY_SECONDS = 3650 * 86400;
     const AMOUNT_PRESETS = [1, 5, 10, 25, 50];
     openModal('Generar keys', `
-      <p class="card-sub" style="margin:-6px 0 20px">Crea keys vinculadas a un script. Podrás copiarlas al terminar.</p>
+      <p class="card-sub" style="margin:-6px 0 20px">${projectMode ? `Keys de usuario para <strong>${esc(projectMode.name)}</strong>: sirven en todos los scripts del proyecto.` : 'Crea keys vinculadas a un script. Podrás copiarlas al terminar.'}</p>
       <form id="formKeys" novalidate>
         <div class="input-group">
-          <label for="fScript">Script</label>
-          <select id="fScript" name="scriptId" class="field block">
+          <label for="fScript">${projectMode ? 'Proyecto' : 'Script'}</label>
+          ${projectMode
+            ? `<input class="field block" value="${esc(projectMode.name)}" disabled><input type="hidden" name="projectId" value="${esc(projectMode.id)}">`
+            : `<select id="fScript" name="scriptId" class="field block">
             ${scripts.map(s => `<option value="${esc(s.id)}" ${String(s.id) === String(preselect) ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
-          </select>
+          </select>`}
         </div>
 
         <div class="input-group">
@@ -629,6 +638,13 @@
               <option value="meses">meses</option>
               <option value="anios">años</option>
             </select>
+          </div>
+          <div class="input-group">
+            <label class="chip" style="justify-content:flex-start;gap:8px">
+              <input type="checkbox" name="startOnUse">
+              <span>El tiempo empieza con la primera ejecución (keys para stock)</span>
+            </label>
+          </div>
           </div>
         </div>
 
@@ -669,7 +685,8 @@
       const secs = currentSeconds();
       $('customDur').hidden = form.querySelector('input[name="dur"]:checked')?.value !== 'custom';
       const expiry = secs === null ? 'no expiran' : Number.isNaN(secs) ? 'con una duración no válida (de 1 hora a 10 años)' : `expiran en ${humanDur(secs)}`;
-      summary.innerHTML = `Se crearán <strong>${n} ${n === 1 ? 'key' : 'keys'}</strong> para <strong>${esc(scriptName(parseInt(scriptEl.value, 10)))}</strong> que ${expiry}.`;
+      const target = projectMode ? `el proyecto <strong>${esc(projectMode.name)}</strong>` : `<strong>${esc(scriptName(parseInt(scriptEl.value, 10)))}</strong>`;
+      summary.innerHTML = `Se crearán <strong>${n} ${n === 1 ? 'key' : 'keys'}</strong> para ${target} que ${expiry}.`;
       submitBtn.textContent = `Generar ${n} ${n === 1 ? 'key' : 'keys'}`;
       form.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('on', Number(b.dataset.preset) === n));
       form.querySelector('[data-step="-1"]').disabled = n <= 1;
@@ -684,7 +701,7 @@
     form.querySelectorAll('input[name="dur"]').forEach(r => r.addEventListener('change', refresh));
     $('fCustomN').addEventListener('input', refresh);
     $('fCustomUnit').addEventListener('change', refresh);
-    scriptEl.addEventListener('change', refresh);
+    if (scriptEl) scriptEl.addEventListener('change', refresh);
     form.addEventListener('submit', submitKeys);
     refresh();
   }
@@ -722,20 +739,26 @@
     const form = e.currentTarget;
     const fd = new FormData(form);
     const name = String(fd.get('name') || '').trim();
+    const version = String(fd.get('version') || '').trim().slice(0, 24);
     const code = $('fCode').value;
     const protection = fd.get('protection') || 'protected';
-    const obfuscator = fd.get('obfuscator') || 'real';
+    const obfuscator = fd.get('obfuscator') || 'next';
+    const obfMode = fd.get('obfMode') || 'medium';
 
+    const projectId = editId ? null : Number($('fProject')?.value);
     if (!name) { toast('Escribe un nombre', 'error'); return; }
+    if (!editId && !projects.some(p => String(p.id) === String(projectId))) { toast('Crea un proyecto y elige en cuál va el script', 'error'); return; }
     if (!editId && !code.trim()) { toast('Agrega el código del script', 'error'); return; }
     if (code && byteLen(code) > MAX_CODE_BYTES) { toast('El código supera 2 MB', 'error'); return; }
     if (!OBFUSCATORS[obfuscator]) { toast('Elige un ofuscador', 'error'); return; }
 
     const body = {
       name,
+      version,
       ffa: protection === 'ffa',
       // El ofuscador se elige en FFA y en protegido
       obfuscator,
+      obf_mode: obfMode,
       hwidResetHours: Number(fd.get('hwidReset') ?? 24),
       shareDetection: fd.get('shareDetection') === 'on',
       hwidLock: fd.get('hwidLock') === 'on',
@@ -743,6 +766,8 @@
       clydeVm: fd.get('clydeVm') === 'on',
     };
     if (code.trim()) body.code = code;
+    if (!editId) body.projectId = projectId;
+    body.initCode = ($('fInit')?.value || '');
 
     const btn = form.querySelector('[type="submit"]');
     setBusy(btn, true);
@@ -784,7 +809,8 @@
     e.preventDefault();
     const form = e.currentTarget;
     const fd = new FormData(form);
-    const scriptId = parseInt(fd.get('scriptId'), 10);
+    const projectId = fd.get('projectId') ? parseInt(fd.get('projectId'), 10) : null;
+    const scriptId = projectId ? null : parseInt(fd.get('scriptId'), 10);
     const amount = Math.min(50, Math.max(1, parseInt(fd.get('amount'), 10) || 1));
     // Misma lógica que currentSeconds() del formulario
     const choice = fd.get('dur') || '';
@@ -803,9 +829,9 @@
     const btn = form.querySelector('[type="submit"]');
     setBusy(btn, true);
     try {
-      const data = await api('/api/keys', { method: 'POST', body: JSON.stringify({ scriptId, amount, seconds: secs }) });
+      const data = await api('/api/keys', { method: 'POST', body: JSON.stringify({ scriptId, projectId, amount, seconds: secs, startOnUse: fd.get('startOnUse') === 'on' }) });
       await loadData();
-      showGenerated(data.keys, scriptName(scriptId));
+      showGenerated(data.keys, projectId ? `Proyecto: ${projectName(projectId)}` : scriptName(scriptId));
     } catch (err) {
       toast(err.message, 'error');
       setBusy(btn, false);
@@ -817,6 +843,11 @@
     if (!user) return;
     $('userName').textContent = user.username || 'Usuario';
     $('userPlan').textContent = PLAN_LABELS[planKey(user.plan)];
+    const rankEl = $('userRank');
+    if (rankEl) {
+      rankEl.textContent = user.owner ? 'Owner' : user.admin ? 'Admin' : (user.staff_role ? String(user.staff_role).charAt(0).toUpperCase() + String(user.staff_role).slice(1) : PLAN_LABELS[planKey(user.plan)]);
+      rankEl.hidden = false;
+    }
     const av = $('userAvatar');
     av.innerHTML = '';
     const src = user.custom_avatar
@@ -898,6 +929,42 @@
     }
   }
 
+  // Fila de script al estilo Luarmor: estado, versión, última edición y acciones (loader/editar/eliminar)
+  const PJ_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmtPjDate(ts) {
+    const d = new Date(Number(ts) * 1000);
+    if (isNaN(d.getTime())) return '—';
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getDate()} ${PJ_MONTHS[d.getMonth()]} ${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  const PJ_GEAR_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  const PJ_SCRIPT_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.4 2 2 17.6 17.6 22 22 6.4 6.4 2Zm4.2 6.6 4.7 1.3-1.3 4.7-4.7-1.3 1.3-4.7Z"/></svg>';
+  const PJ_DOWN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m6 11 6 6 6-6"/><path d="M5 21h14"/></svg>';
+  const PJ_PENCIL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>';
+  const PJ_TRASH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+
+  function pjRow(s) {
+    const loader = loaderFor(s);
+    const isFfa = protectionOf(s) === 'ffa';
+    const badge = isFfa
+      ? '<span class="pj-status free"><i class="pj-dot" aria-hidden="true"></i>Free</span>'
+      : '<span class="pj-status"><i class="pj-dot" aria-hidden="true"></i>Activo</span>';
+    const when = s.updated_at ? fmtPjDate(s.updated_at) : '—';
+    return `
+        <tr>
+          <td>${badge}</td>
+          <td class="pj-ver">${s.version ? esc(s.version) : '—'}</td>
+          <td class="pj-when">${esc(when)}</td>
+          <td>
+            <div class="pj-acts">
+              <button class="pj-act loader" type="button" data-copy="${esc(loader)}" data-msg="Loader copiado" title="Copiar loader">${PJ_DOWN_SVG}<span>LOADER</span></button>
+              <button class="pj-act edit" type="button" data-edit="${esc(s.id)}" title="Editar">${PJ_PENCIL_SVG}<span>Editar</span></button>
+              <button class="pj-act del" type="button" data-delete="${esc(s.id)}" data-name="${esc(s.name)}" title="Eliminar">${PJ_TRASH_SVG}<span>Eliminar</span></button>
+            </div>
+          </td>
+        </tr>`;
+  }
+
   function renderScripts() {
     const grid = $('scriptsGrid');
     if (!scriptsLoaded && !scriptsError) {
@@ -908,53 +975,46 @@
       grid.innerHTML = `<div class="empty"><h3>No se pudieron cargar los scripts</h3><p>Revisa tu conexión y pulsa Actualizar.</p></div>`;
       return;
     }
-    if (!scripts.length) {
-      grid.innerHTML = `<div class="empty"><h3>Aún no tienes scripts</h3><p>Sube tu primer script para empezar a generar keys.</p><button class="btn" data-open="script">+ Nuevo script</button></div>`;
+    const groups = projects.map(p => ({ p, list: scripts.filter(s => String(s.project_id ?? '') === String(p.id)) }));
+    const loose = scripts.filter(s => !projects.some(p => String(p.id) === String(s.project_id)));
+    if (!groups.length && !loose.length) {
+      grid.innerHTML = `<div class="empty"><h3>Aún no tienes proyectos</h3><p>Crea tu primer proyecto: cada script vive dentro de un proyecto.</p><button class="btn" data-open="project">+ Nuevo proyecto</button></div>`;
       return;
     }
-    grid.innerHTML = scripts.map(s => {
-      const mine = keysError ? [] : keys.filter(k => k.script_id === s.id);
-      const act = mine.filter(k => keyStatus(k).id === 'active').length;
-      const loader = loaderFor(s);
-      const isFfa = protectionOf(s) === 'ffa';
-      const vmTag = obfuscatorOf(s) === 'clyde' && s.clyde_vm ? ' · VM' : '';
-      const meta = isFfa ? `FFA · sin key · ${OBFUSCATORS[obfuscatorOf(s)] ?? ''}` : `Protegido · ${OBFUSCATORS[obfuscatorOf(s)]}${vmTag}`;
-      return `
-        <article class="card script-card">
-          <div class="row">
-            <h4 class="script-name" title="${esc(s.name)}">${esc(s.name)}</h4>
-            <span class="badge ${isFfa ? 'bad' : 'ok'}">${isFfa ? 'FFA' : 'Protegido'}</span>
-            ${s.perf_level ? `<span class="badge ${perfClass(s.perf_level)}">Rendimiento ${PERF_LABEL[s.perf_level] ?? ''}</span>` : ''}
-            ${s.maintenance ? '<span class="badge bad">En mantenimiento</span>' : ''}
+    const pjCard = (title, id, list) => `
+      <article class="card pj-card">
+        <div class="pj-head">
+          <div class="pj-icon" aria-hidden="true">${PJ_SCRIPT_SVG}</div>
+          <div class="pj-names">
+            <div class="pj-name" title="${esc(title)}">${esc(title)}</div>
+            ${id ? `<div class="pj-id">${esc(id)}</div>` : ''}
+            <span class="pj-count">${list.length} ${list.length === 1 ? 'script' : 'scripts'}</span>
           </div>
-          <div class="script-meta">${esc(meta)}</div>
-          <div class="script-stats">
-            <div><b>${mine.length}</b>keys</div>
-            <div><b>${act}</b>activas</div>
-          </div>
-          <button class="loader-box" type="button" data-copy="${esc(loader)}" data-msg="Loader copiado" aria-label="Copiar loader de ${esc(s.name)}">
-            <span class="loader-text">${esc(loader)}</span>${ICON_COPY}
-          </button>
-          <div class="row">
-            <button class="btn ghost sm" data-edit="${esc(s.id)}">Editar</button>
-            <button class="btn ghost sm" data-protected="${esc(s.id)}">Ver código protegido</button>
-            <button class="btn ghost sm" data-maint="${esc(s.id)}" data-on="${s.maintenance ? 1 : 0}">${s.maintenance ? 'Quitar mantenimiento' : 'Poner en mantenimiento'}</button>
-            <button class="btn ghost sm" data-delete="${esc(s.id)}" data-name="${esc(s.name)}">Eliminar</button>
-            <button class="btn ghost sm" data-view-keys="${esc(s.id)}">Ver keys</button>
-            <button class="btn sm" data-gen="${esc(s.id)}">+ Keys</button>
-          </div>
-        </article>`;
-    }).join('');
+          ${id ? `
+          <div class="pj-btns">
+            <button class="pj-add" type="button" data-pj-newscript="${esc(id)}"><span class="pj-plus">+</span><span class="pj-add-txt">Añadir script</span></button>
+            <button class="pj-gear" type="button" data-pj-edit="${esc(id)}" title="Ajustes" aria-label="Ajustes del proyecto">${PJ_GEAR_SVG}</button>
+          </div>` : ''}
+        </div>
+        ${list.length ? `
+        <div class="pj-table-wrap"><table class="pj-table">
+          <thead><tr><th>Estado</th><th>Versión</th><th>Última edición</th><th>Acciones</th></tr></thead>
+          <tbody>${list.map(pjRow).join('')}</tbody>
+        </table></div>` : `<p class="hint pj-empty">Este proyecto todavía no tiene scripts: usa “Añadir script”.</p>`}
+      </article>`;
+    grid.innerHTML = groups.map(({ p, list }) => pjCard(p.name, p.id, list)).join('') +
+      (loose.length ? pjCard('Sin proyecto', '', loose) : '');
   }
 
   function filteredKeys() {
     const q = $('keySearch').value.trim().toLowerCase();
     const scriptId = $('keyScript').value;
     const filter = $('keyFilter').value;
+    const pjId = scriptId.startsWith('pj:') ? scriptId.slice(3) : null;
     return keys
-      .map(k => ({ k, st: keyStatus(k), script: scriptName(k.script_id) }))
+      .map(k => ({ k, st: keyStatus(k), script: k.script_id ? scriptName(k.script_id) : (projectName(k.project_id) ? `Proyecto: ${projectName(k.project_id)}` : '—') }))
       .filter(r =>
-        (scriptId === 'all' || String(r.k.script_id) === scriptId) &&
+        (pjId ? (r.k.project_id != null && String(r.k.project_id) === pjId) : (scriptId === 'all' || String(r.k.script_id ?? '') === scriptId)) &&
         (filter === 'all' || r.st.id === filter) &&
         (!q || r.script.toLowerCase().includes(q) || r.k.key.toLowerCase().includes(q))
       );
@@ -964,7 +1024,8 @@
     const sel = $('keyScript');
     const current = sel.value || 'all';
     sel.innerHTML = `<option value="all">Todos los scripts</option>` +
-      scripts.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+      scripts.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('') +
+      projects.map(p => `<option value="pj:${esc(p.id)}">Proyecto: ${esc(p.name)}</option>`).join('');
     sel.value = [...sel.options].some(o => o.value === current) ? current : 'all';
   }
 
@@ -1233,7 +1294,8 @@
   const hasPlusPlan = () => !!user && (user.plan === 'plus' || user.plan === 'custom');
   // Precios y Bienvenida se ven siempre; si no hay plan, aparecen con candado (sin redirigir)
   function applyLocks() {
-    const locked = { precios: !hasPerkPlan(), bienvenida: !hasPlusPlan(), profile: !hasPerkPlan() };
+    // Perfil es gratis para todos los planes; solo Precios y Bienvenida quedan con candado
+    const locked = { precios: !hasPerkPlan(), bienvenida: !hasPlusPlan() };
     document.querySelectorAll('[data-lockable]').forEach(b => {
       const on = !!locked[b.dataset.lockable];
       b.classList.toggle('locked', on);
@@ -1242,6 +1304,8 @@
     document.querySelectorAll('.view[data-view]').forEach(v => {
       if (v.dataset.view in locked) v.classList.toggle('locked', locked[v.dataset.view]);
     });
+    const _navAdmin = document.getElementById('navAdmin');
+    if (_navAdmin && typeof user !== 'undefined' && user && user.admin) _navAdmin.hidden = false;
   }
   function setPlusNav(allowed) {
     applyLocks();
@@ -1314,7 +1378,9 @@
       const bs = $('botServers');
       if (bs) {
         bs.hidden = typeof st.servers !== 'number';
-        bs.textContent = `Bot en ${st.servers} ${st.servers === 1 ? 'servidor' : 'servidores'}`;
+        const vmTmpl = st.servers === 1 ? 'Bot en %N% servidor' : 'Bot en %N% servidores';
+        const vmDict = window.VM_LANGS && window.VM_LANGS[document.documentElement.lang || 'es'];
+        bs.textContent = ((vmDict && vmDict[vmTmpl]) || `Bot en ${st.servers} ${st.servers === 1 ? 'servidor' : 'servidores'}`).replace('%N%', st.servers);
       }
       const box = $('siteNotice');
       // Mantenimiento: pantalla completa para los usuarios; el dueño sigue entrando y ve el aviso normal
@@ -1452,6 +1518,57 @@
   }
 
   // ---------- CHAT DE LA COMUNIDAD ----------
+  // Recompensas: canje de códigos (keydrop) y gestión del dueño
+  async function loadRewards() {
+    if (!(user && user.owner)) return;
+    $('rewardsOwnerCard').hidden = false;
+    $('rewardsListCard').hidden = false;
+    let list = scripts;
+    if (!list.length) {
+      try { const d = await api('/api/scripts'); list = Array.isArray(d) ? d : (d.scripts || []); } catch (_) {}
+    }
+    $('rwScript').innerHTML = list.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+    try {
+      const data = await api('/api/rewards');
+      const rewards = data.rewards || [];
+      $('rewardsList').innerHTML = rewards.length ? rewards.map(r => `<div class="keys-summary"><strong>${esc(r.code)}</strong> · ${esc(r.script_name || 'script borrado')} · ${r.key_days} días · ${r.uses}/${r.max_uses} usos <button class="btn ghost sm" data-rwdel="${r.id}" type="button">Eliminar</button></div>`).join('') : '<div class="hint">Todavía no hay recompensas.</div>';
+    } catch (_) {}
+  }
+
+  $('rewardsRedeemForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const code = $('rewardsCode').value.trim();
+    if (!code) return;
+    const box = $('rewardsResult');
+    try {
+      const r = await api('/api/rewards/redeem', { method: 'POST', body: JSON.stringify({ code }) });
+      box.hidden = false;
+      box.innerHTML = `<div class="keys-summary">Key generada (${r.keyDays} días, empieza con la primera ejecución):<br><code>${esc(r.key)}</code></div>`;
+      copyText(r.key, 'Key copiada al portapapeles');
+      toast('Recompensa canjeada');
+    } catch (err) {
+      box.hidden = false;
+      box.innerHTML = `<div class="hint">${esc((err && err.message) || 'No se pudo canjear')}</div>`;
+    }
+  });
+
+  $('rewardsForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    try {
+      await api('/api/rewards', { method: 'POST', body: JSON.stringify({ code: $('rwCode').value.trim(), scriptId: Number($('rwScript').value), keyDays: Number($('rwDays').value), maxUses: Number($('rwUses').value) }) });
+      toast('Recompensa creada');
+      $('rwCode').value = '';
+      loadRewards();
+    } catch (err) { toast((err && err.message) || 'No se pudo crear', 'error'); }
+  });
+
+  $('rewardsList').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-rwdel]');
+    if (!btn) return;
+    try { await api(`/api/rewards/${btn.dataset.rwdel}`, { method: 'DELETE' }); toast('Recompensa eliminada'); loadRewards(); }
+    catch (err) { toast((err && err.message) || 'No se pudo eliminar', 'error'); }
+  });
+
   let chatMessages = [];
   let chatES = null;            // conexión en vivo (SSE)
   let chatPollTimer = null;     // respaldo si la conexión en vivo no funciona
@@ -2455,6 +2572,7 @@
     return out;
   }
   function openMacroPicker() {
+    const isVant = $('fObf').value === 'vantobf';
     const fns = findLuauFunctions($('fCode').value);
     if (!fns.length) { toast('No encontré funciones en el código', 'error'); return; }
     const hot = hotRanges($('fCode').value);
@@ -2471,7 +2589,23 @@
     wrap.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true" style="max-width:520px;width:100%">
         <h3>Macros de rendimiento</h3>
-        <p class="hint">Las funciones marcadas salen de la VM: corren más rápido, pero quedan menos protegidas.</p>
+        <p class="hint">${isVant ? 'Con el Ofuscador 5 cada nivel ajusta cuánto se cifra el código de esa función: a más nivel, más rápido corre.' : 'Las funciones marcadas salen de la VM: corren más rápido, pero quedan menos protegidas.'}</p>
+        <div style="margin-top:10px">
+          <span class="label">Nivel de la macro</span>
+          <select id="mcLevel" class="field block" style="margin-top:6px">
+            ${isVant ? `
+            <option value="bajo">Bajo: cifrado completo (protección máxima)</option>
+            <option value="medio" selected>Medio: sin cifrar los textos</option>
+            <option value="alto">Alto: sin cifrar nada</option>
+            <option value="extremo">Extremo: sin cifrar nada, también funciones anidadas</option>
+            ` : `
+            <option value="bajo">Bajo: la función queda dentro de la VM (protección máxima)</option>
+            <option value="medio" selected>Medio: la función sale de la VM (corre más rápido)</option>
+            <option value="alto">Alto: la función sale de la VM</option>
+            <option value="extremo">Extremo: la función sale de la VM</option>
+            `}
+          </select>
+        </div>
         <label style="display:flex;gap:8px;align-items:center;margin-top:10px;cursor:pointer">
           <input type="checkbox" data-mc-only checked>
           <span>Mostrar solo las que tienen bucles o corren cada frame (${heavyCount})</span>
@@ -2499,38 +2633,25 @@
     wrap.querySelector('[data-mc-apply]').addEventListener('click', () => {
       const chosen = [...wrap.querySelectorAll('[data-mc]:checked')].map(c => fns[Number(c.dataset.mc)]);
       if (!chosen.length) { toast('Marca al menos una función', 'error'); return; }
+      const lvl = (wrap.querySelector('#mcLevel') || {}).value || 'medio';
       const lines = $('fCode').value.split('\n');
       // De abajo hacia arriba para que no se muevan los números de línea
-      for (const f of [...chosen].sort((a, b) => b.line - a.line)) lines.splice(f.line, 0, `${f.indent}LUO_NO_VIRTUALIZE()`);
+      let added = 0;
+      for (const f of [...chosen].sort((a, b) => b.line - a.line)) {
+        if (!isVant && lvl === 'bajo') break; // Bajo con Ofuscador 3: dejarla en la VM
+        lines.splice(f.line, 0, isVant ? `${f.indent}--VANT_MACRO(${lvl})` : `${f.indent}LUO_NO_VIRTUALIZE()`);
+        added++;
+      }
       $('fCode').value = lines.join('\n');
       wrap.remove();
-      toast(`Macro agregada a ${chosen.length} función(es). Guarda el script para aplicarla`);
+      if (added) toast(`Macro agregada a ${added} función(es). Guarda el script para aplicarla`);
+      else toast('Con Bajo no se agrega macro: esas funciones quedan en la VM', 'error');
     });
   }
   document.addEventListener('click', e => { if (e.target.closest('#macroBtn')) openMacroPicker(); });
 
   // ---------- WEBHOOKS (perfil) ----------
   const WH_EVENT_LABEL = { 'key.created': 'Key creada', 'key.banned': 'Key baneada', 'key.shared': 'Key compartida', 'script.tamper': 'Intento de dump', 'webhook.test': 'Prueba' };
-  async function loadActivity() {
-    const box = $('pfActivity');
-    if (!box) return;
-    box.innerHTML = '<p class="hint">Cargando actividad…</p>';
-    try {
-      const { redemptions, logs, deleted = [], obfTotal = 0 } = await api('/api/me/activity');
-      const rows = [
-        ...redemptions.map(r => ({ at: r.used_at, text: `Canjeaste una key de ${PLAN_LABELS[planKey(r.plan)] || r.plan}` })),
-        ...logs.map(l => ({ at: l.created_at, text: `${l.script_name || 'Script'}: ${l.text}` })),
-        ...deleted.map(d => ({ at: d.deleted_at, text: `🗑️ Script eliminado: ${d.name || 'sin nombre'}` })),
-      ].sort((a, b) => b.at - a.at).slice(0, 30);
-      const summary = `<p class="hint"><strong>Ofuscaciones totales: ${esc(String(obfTotal))}</strong></p>`;
-      box.innerHTML = summary + (rows.length
-        ? rows.map(r => `<div class="activity-row"><span class="hint">${fmtDate(r.at)}</span><span>${esc(r.text)}</span></div>`).join('')
-        : '<p class="hint">Aún no hay actividad.</p>');
-    } catch (err) {
-      box.innerHTML = `<p class="hint">No pude cargar la actividad: ${esc(err.message)}</p>`;
-    }
-  }
-
   async function loadWebhooks() {
     const box = $('whList');
     if (!box) return;
@@ -2744,88 +2865,98 @@
     const existing = new Set(keys.map(x => x.key));
     selected.forEach(key => { if (!existing.has(key)) selected.delete(key); });
 
+    await loadProjects();
     renderAll();
   }
 
   // ---------- PROYECTOS (agrupan scripts) ----------
   let projects = [];
+  // Los proyectos se pintan dentro de la vista de scripts (renderScripts agrupa por proyecto)
   async function loadProjects() {
     try {
       projects = await api('/api/projects');
     } catch (err) {
-      toast(err.message, 'error');
+      projects = [];
     }
-    renderProjects();
+    if (scriptsLoaded || scriptsError) renderScripts();
   }
-  function renderProjects() {
-    const box = $('pjGroups');
-    if (!box) return;
-    const inProject = pid => scripts.filter(s => String(s.project_id ?? '') === String(pid ?? ''));
-    const groups = [
-      ...projects.map(p => ({ id: p.id, name: p.name, list: inProject(p.id), removable: true })),
-      { id: null, name: 'Sin proyecto', list: inProject(null), removable: false },
-    ];
-    box.innerHTML = groups.map(g => {
-      const options = ['<option value="">Sin proyecto</option>', ...projects.map(p =>
-        `<option value="${esc(p.id)}" ${String(p.id) === String(g.id) ? 'selected' : ''}>${esc(p.name)}</option>`)].join('');
-      return `
-        <article class="card proj-card">
-          <div class="panel-head">
-            <h3>${esc(g.name)} <span class="badge neutral">${g.list.length} ${g.list.length === 1 ? 'script' : 'scripts'}</span></h3>
-            ${g.removable ? `<button type="button" class="btn ghost sm" data-pj-del="${esc(g.id)}">Eliminar proyecto</button>` : ''}
+
+  // Modal de proyecto: crear o editar (webhooks de logs y alertas, HWID y auto-borrado, estilo panel)
+  function openProjectModal(p = null) {
+    const edit = !!p;
+    openModal(edit ? 'Ajustes del proyecto' : 'Nuevo proyecto', `
+      <form id="formProject" class="pj-form" novalidate>
+        <div class="pj-modal-grid">
+          <div class="pj-fields">
+            <div class="input-group">
+              <label for="pjName">Nombre</label>
+              <input id="pjName" class="field block" maxlength="40" value="${edit ? esc(p.name) : ''}" autocomplete="off" ${edit ? 'disabled' : 'required'}>
+            </div>
+            <div class="input-group">
+              <label for="pjLogs">Webhook de logs</label>
+              <input id="pjLogs" class="field block" placeholder="https://discord.com/api/webhooks/..." value="${edit ? esc(p.logs_webhook || '') : ''}" autocomplete="off">
+              <div class="hint">* Las ejecuciones correctas se enviarán a este webhook</div>
+            </div>
+            <div class="input-group">
+              <label for="pjAlert">Webhook de alertas</label>
+              <input id="pjAlert" class="field block" placeholder="https://discord.com/api/webhooks/..." value="${edit ? esc(p.alert_webhook || '') : ''}" autocomplete="off">
+              <div class="hint">* Los intentos de crack y los baneos se reportarán a este webhook</div>
+            </div>
+            <div class="input-group">
+              <label class="chip" style="justify-content:flex-start;gap:8px">
+                <input type="checkbox" name="allowHwidReset" ${!edit || p.allow_hwid_reset !== 0 ? 'checked' : ''}>
+                <span>Permitir que los usuarios reinicien su HWID</span>
+              </label>
+              <div class="hint">* Cuando está activo, los usuarios pueden reiniciar su HWID</div>
+            </div>
+            <div class="input-group">
+              <label for="pjCooldown">Cooldown</label>
+              <input id="pjCooldown" type="number" min="0" max="365" class="field block" value="${edit && p.hwid_reset_cooldown_days != null ? esc(p.hwid_reset_cooldown_days) : ''}">
+              <div class="hint">* Días que el usuario debe esperar antes de reiniciar su HWID</div>
+            </div>
+            <div class="input-group">
+              <label class="chip" style="justify-content:flex-start;gap:8px">
+                <input type="checkbox" name="autoDeleteExpired" ${edit && p.auto_delete_expired === 1 ? 'checked' : ''}>
+                <span>Auto delete expired users</span>
+              </label>
+              <div class="hint">* Cuando está activo, las keys expiradas se borran automáticamente cada 15 minutos</div>
+            </div>
+            <div class="input-group">
+              <label class="chip" style="justify-content:flex-start;gap:8px">
+                <input type="checkbox" name="allowHwidCloneSharing" ${edit && p.allow_hwid_clone_sharing === 1 ? 'checked' : ''}>
+                <span>Permitir compartir la key entre varios HWID (desactiva el bloqueo de HWID)</span>
+              </label>
+            </div>
           </div>
-          ${g.list.length ? g.list.map(s => `
-            <div class="proj-row">
-              <span>${esc(s.name)}</span>
-              <select class="field proj-move" data-pj-move="${esc(s.id)}" aria-label="Mover ${esc(s.name)} a otro proyecto">${options}</select>
-            </div>`).join('') : '<p class="hint">Sin scripts aquí todavía.</p>'}
-        </article>`;
-    }).join('');
-    // Cada select marca su proyecto actual
-    box.querySelectorAll('[data-pj-move]').forEach(sel => {
-      const script = scripts.find(s => String(s.id) === sel.dataset.pjMove);
-      sel.value = script && script.project_id != null ? String(script.project_id) : '';
+          <div class="pj-modal-btns">
+            <button type="submit" class="pj-ok" title="${edit ? 'Guardar cambios' : 'Crear proyecto'}" aria-label="${edit ? 'Guardar cambios' : 'Crear proyecto'}">✓</button>
+            <button type="button" class="pj-no" data-close title="Cerrar" aria-label="Cerrar">✕</button>
+            ${edit ? `<button type="button" class="pj-del-link" data-pj-del="${esc(p.id)}">Eliminar</button>` : ''}
+          </div>
+        </div>
+      </form>`);
+    $('formProject').addEventListener('submit', async e => {
+      e.preventDefault();
+      const name = $('pjName').value.trim();
+      if (!edit && !name) { toast('Escribe un nombre', 'error'); return; }
+      const body = {
+        name,
+        logsWebhook: $('pjLogs').value.trim(),
+        alertWebhook: $('pjAlert').value.trim(),
+        allowHwidReset: document.querySelector('#formProject [name="allowHwidReset"]').checked,
+        hwidResetCooldownDays: $('pjCooldown').value === '' ? null : Number($('pjCooldown').value),
+        autoDeleteExpired: document.querySelector('#formProject [name="autoDeleteExpired"]').checked,
+        allowHwidCloneSharing: document.querySelector('#formProject [name="allowHwidCloneSharing"]').checked,
+      };
+      try {
+        if (edit) await api(`/api/projects/${encodeURIComponent(p.id)}`, { method: 'PUT', body: JSON.stringify(body) });
+        else await api('/api/projects', { method: 'POST', body: JSON.stringify(body) });
+        toast(edit ? 'Proyecto actualizado' : 'Proyecto creado');
+        closeModal();
+        await loadProjects();
+      } catch (err) { toast(err.message, 'error'); }
     });
   }
-  $('formProject').addEventListener('submit', async e => {
-    e.preventDefault();
-    const name = $('pjName').value.trim();
-    if (!name) return;
-    try {
-      await api('/api/projects', { method: 'POST', body: JSON.stringify({ name }) });
-      $('pjName').value = '';
-      toast('Proyecto creado');
-      await loadProjects();
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-  });
-  $('pjGroups').addEventListener('click', async e => {
-    const del = e.target.closest('[data-pj-del]');
-    if (!del) return;
-    if (!await askConfirm('Eliminar proyecto', '¿Eliminar este proyecto? Sus scripts quedan sin proyecto (no se borran).', { okText: 'Eliminar', danger: true })) return;
-    try {
-      await api(`/api/projects/${encodeURIComponent(del.dataset.pjDel)}/delete`, { method: 'POST' });
-      toast('Proyecto eliminado');
-      await loadData();
-      await loadProjects();
-    } catch (err) {
-      toast(err.message, 'error');
-    }
-  });
-  $('pjGroups').addEventListener('change', async e => {
-    const sel = e.target.closest('[data-pj-move]');
-    if (!sel) return;
-    try {
-      await api(`/api/scripts/${encodeURIComponent(sel.dataset.pjMove)}/project`, { method: 'POST', body: JSON.stringify({ projectId: sel.value || null }) });
-      toast('Script movido');
-      await loadData();
-      await loadProjects();
-    } catch (err) {
-      toast(err.message, 'error');
-      await loadProjects();
-    }
-  });
 
   // ---------- EVENTS ----------
   document.addEventListener('click', e => {
@@ -2840,7 +2971,40 @@
     const open = t.closest('[data-open]');
     if (open) {
       if (open.dataset.open === 'script') openScriptModal();
+      else if (open.dataset.open === 'project') openProjectModal();
       else openKeysModal();
+      return;
+    }
+
+    const pjNew = t.closest('[data-pj-newscript]');
+    if (pjNew) { openScriptModal(pjNew.dataset.pjNewscript); return; }
+
+    const pjUser = t.closest('[data-pj-adduser]');
+    if (pjUser) { openKeysModal('', projects.find(p => String(p.id) === pjUser.dataset.pjAdduser) || null); return; }
+
+    const pjUsers = t.closest('[data-pj-editusers]');
+    if (pjUsers) {
+      showView('keys');
+      $('keyScript').value = `pj:${pjUsers.dataset.pjEditusers}`;
+      $('keySearch').value = '';
+      $('keyFilter').value = 'all';
+      renderKeys();
+      return;
+    }
+
+    const pjEdit = t.closest('[data-pj-edit]');
+    if (pjEdit) { openProjectModal(projects.find(p => String(p.id) === pjEdit.dataset.pjEdit) || null); return; }
+
+    const pjDel = t.closest('[data-pj-del]');
+    if (pjDel) {
+      const p = projects.find(x => String(x.id) === pjDel.dataset.pjDel);
+      askConfirm(`Eliminar proyecto "${p ? p.name : ''}"`, 'Sus scripts y sus keys pasan al proyecto más antiguo que quede. No se borra nada.', { okText: 'Eliminar', danger: true })
+        .then(ok => {
+          if (!ok) return;
+          api(`/api/projects/${encodeURIComponent(pjDel.dataset.pjDel)}/delete`, { method: 'POST' })
+            .then(() => { toast('Proyecto eliminado'); return loadData(); })
+            .catch(err => toast(err.message, 'error'));
+        });
       return;
     }
 
@@ -2905,6 +3069,23 @@
   });
 
   $('userAvatar').addEventListener('click', () => showView('profile'));
+  $('userGear').addEventListener('click', () => showView('profile'));
+
+  // Tema del panel: christmas (por defecto) o basic (plata y negro)
+  const THEME_KEY = 'vm_theme';
+  const applyTheme = () => {
+    try { document.body.classList.toggle('theme-basic', (localStorage.getItem(THEME_KEY) || 'christmas') === 'basic'); } catch (_) {}
+  };
+  applyTheme();
+  document.querySelectorAll('input[name="vaTheme"]').forEach(r => {
+    try { r.checked = r.value === (localStorage.getItem(THEME_KEY) || 'christmas'); } catch (_) {}
+    r.addEventListener('change', () => {
+      if (!r.checked) return;
+      try { localStorage.setItem(THEME_KEY, r.value); } catch (_) {}
+      applyTheme();
+      location.reload();
+    });
+  });
   $('userAvatar').title = 'Mi perfil';
   $('userAvatar').style.cursor = 'pointer';
 

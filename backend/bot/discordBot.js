@@ -1,4 +1,4 @@
-// Bot de Discord para Vantarmor (estilo Luarmor).
+// Bot de Discord para Vantarmor (estilo Vantarmor).
 // Comparte la base SQLite de server.js: recibe `db` y crea sus tablas con ensureBotSchema().
 import {
   ActionRowBuilder,
@@ -105,10 +105,8 @@ export const commands = [
     .addStringOption(o => scriptOpt(o))
     .addStringOption(o => o.setName('descripcion').setDescription('Descripción del panel (opcional, usa \\n para saltos de línea)').setMaxLength(800)),
   new SlashCommandBuilder().setName('stats').setDescription('Muestra tus keys'),
-  new SlashCommandBuilder().setName('hostproyect').setDescription('Ofusca un archivo .lua con tu plan, sin publicarlo en la web')
-    .addAttachmentOption(o => o.setName('archivo').setDescription('Archivo .lua a ofuscar').setRequired(true))
-    .addStringOption(o => o.setName('ofuscador').setDescription('Ofuscador a usar (por defecto el 4)')
-      .addChoices({ name: 'Ofuscador 1', value: 'real' }, { name: 'Ofuscador 2', value: 'obscura' })),
+  new SlashCommandBuilder().setName('hostproyect').setDescription('Ofusca un archivo .lua con tu plan (Ofuscador 4), sin publicarlo en la web')
+    .addAttachmentOption(o => o.setName('archivo').setDescription('Archivo .lua a ofuscar').setRequired(true)),
   new SlashCommandBuilder().setName('redeem').setDescription('Canjea una key')
     .addStringOption(o => o.setName('key').setDescription('Tu key').setRequired(true).setMinLength(32).setMaxLength(64)),
   new SlashCommandBuilder().setName('generatekey').setDescription('Genera keys para un script (dueño o gestor)')
@@ -435,7 +433,7 @@ export async function startDiscordBot({ db, token, clientId, guildId, publicUrl,
       (r.kind === 'user' && r.discord_id === userId) || (r.kind === 'role' && roleIds.includes(r.discord_id)));
   }
 
-  // Mensaje para quien no tiene whitelist ni key (estilo Luarmor)
+  // Mensaje para quien no tiene whitelist ni key (estilo Vantarmor)
   const NO_ACCESS_MSG = 'You need to be whitelisted to get this script.\nIf you have a script key, click on the Redeem button below to redeem it';
   const KEY_LIMIT_MSG = '⛔ El creador de este script alcanzó el límite de keys de su plan en este periodo. Vuelve a intentar cuando se reinicie.';
 
@@ -688,7 +686,7 @@ export async function startDiscordBot({ db, token, clientId, guildId, publicUrl,
     return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
   }
 
-  // Panel con botones (estilo Luarmor): muestra quién creó el script
+  // Panel con botones (estilo Vantarmor): muestra quién creó el script
   function panelPayload(script, customDescription, displayName = null) {
     const creator = script.user_id ? q.userById.get(script.user_id) : null;
     // Apodo en el servidor (o nombre visible) del dueño; si no se pudo leer, el nombre de usuario
@@ -848,8 +846,8 @@ export async function startDiscordBot({ db, token, clientId, guildId, publicUrl,
       case 'hostproyect': {
         // Mismo flujo que el obfuscador de la web: cuenta contra las cuotas de tu plan
         const file = interaction.options.getAttachment('archivo', true);
-        const obf = interaction.options.getString('ofuscador') || 'real';
-        const names = { real: 'Ofuscador 1', obscura: 'Ofuscador 2' };
+        const obf = 'next';
+        const names = { next: 'Ofuscador 4' };
         if (!/\.(lua|luau|txt)$/i.test(file.name || '')) return reply('❌ Adjunta un archivo .lua');
         if (file.size > 2 * 1024 * 1024) return reply('❌ El archivo supera 2 MB.');
         const limitMsg = quota.quotaError(actor, { isNewScript: false, isFfa: false });
@@ -857,7 +855,7 @@ export async function startDiscordBot({ db, token, clientId, guildId, publicUrl,
         const src = await (await fetch(file.url)).text();
         let out;
         try {
-          out = await obfuscate(src, obf, { vm: obf === 'real' });
+          out = await obfuscate(src, obf);
         } catch (err) {
           return reply(`❌ ${err.message || 'No se pudo ofuscar el archivo.'}`);
         }

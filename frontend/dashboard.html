@@ -53,14 +53,24 @@
   <aside class="sidebar" id="sidebar" aria-label="Navegación principal">
     <div class="sidebar-inner">
       <div class="brand"><div class="brand-icon" aria-hidden="true"><img src="https://files.catbox.moe/qxl7dn.png" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>Vantarmor</div>
+      <div class="user-widget">
+        <div class="user-box">
+          <div class="avatar" id="userAvatar" aria-hidden="true"></div>
+          <div class="user-details">
+            <div class="user-name" id="userName">Cargando…</div>
+            <div class="user-plan" id="userPlan">—</div>
+            <span class="badge ok" id="userRank" hidden style="align-self:flex-start"></span>
+          </div>
+<button type="button" class="user-gear" id="userGear" title="Ajustes" aria-label="Ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+                    </div>
+      </div>
 
       <nav class="nav">
+        <div class="nav-label">Espacio de trabajo</div>
         <button class="nav-item active" data-nav="dashboard" aria-current="page">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
           Dashboard
         </button>
-
-        <div class="nav-label">Gestión</div>
         <button class="nav-item" data-nav="scripts">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           Scripts
@@ -69,10 +79,6 @@
         <button class="nav-item" data-nav="stats">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           Estadísticas
-        </button>
-        <button class="nav-item" data-nav="projects">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-          Proyectos
         </button>
         <button class="nav-item" data-nav="keys">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/></svg>
@@ -83,13 +89,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"/></svg>
           Blacklist
         </button>
-
-        <button class="nav-item" data-nav="chat">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Chat
+        <button class="nav-item" data-nav="rewards">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+          Recompensas
         </button>
-
-        <div class="nav-label">Cuenta</div>
+        <div class="nav-label">Recursos</div>
         <button class="nav-item" data-nav="soporte">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           Soporte
@@ -98,21 +102,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2 3 7v6c0 5 4 9 9 9s9-4 9-9V7l-9-5z"/></svg>
           Planes
         </button>
-        <button class="nav-item" data-nav="profile" data-lockable="profile">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-          Perfil
-          <svg class="nav-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        </button>
-        <button class="nav-item" data-nav="precios" data-lockable="precios">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/></svg>
-          Precios
-          <svg class="nav-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        </button>
-        <button class="nav-item" data-nav="bienvenida" data-lockable="bienvenida">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
-          Bienvenida
-          <svg class="nav-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        </button>
+        <a class="nav-item" href="https://discord.gg/aKQNc6pC" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1569 2.419 0 1.3332-.946 2.4189-2.1569 2.4189z"/></svg>
+          Discord
+        </a>
+        <div class="nav-owner" data-owner-only style="display:none">
+        <div class="nav-label">Dueño</div>
         <button class="nav-item" data-nav="ownerpanel" data-owner-only style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
           Panel del dueño
@@ -129,29 +124,19 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-3.9 3.1-7 7-7s7 3.1 7 7M16 3.1a4 4 0 0 1 0 7.8M22 21c0-3.1-1.8-5.8-4.5-7"/></svg>
           Usuarios
         </button>
-        <div class="nav-label">Comunidad</div>
-        <a class="nav-item" href="/soporte" style="text-decoration:none;color:inherit">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg>
-          Soporte
+        <a class="nav-item" id="navAdmin" href="/admin" hidden style="text-decoration:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/></svg>
+          Admin
         </a>
-        <a class="nav-item" href="https://discord.gg/aKQNc6pC" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1569 2.419 0 1.3332-.946 2.4189-2.1569 2.4189z"/></svg>
-          Discord
+      </div>
+        <div class="nav-label">Cuenta</div>
+        <a class="nav-item" href="/auth/logout" style="text-decoration:none;color:inherit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Cerrar sesión
         </a>
       </nav>
 
-      <div class="user-widget">
-        <div class="user-box">
-          <div class="avatar" id="userAvatar" aria-hidden="true"></div>
-          <div class="user-details">
-            <div class="user-name" id="userName">Cargando…</div>
-            <div class="user-plan" id="userPlan">—</div>
-          </div>
-          <a class="logout" href="/auth/logout" title="Cerrar sesión" aria-label="Cerrar sesión">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          </a>
-        </div>
-      </div>
+      
     </div>
   </aside>
 
@@ -166,7 +151,7 @@
       <h1 class="page-title" id="pageTitle">Dashboard<small id="pageSub">Resumen de tu cuenta</small></h1>
       <a class="btn sm" id="inviteBotBtn" href="#" target="_blank" rel="noopener" style="display:none">Invitar bot</a>
       <span class="badge ok" id="botServers" hidden></span>
-      <div id="langSlot"></div>
+      
     </header>
 
     <div class="content">
@@ -309,26 +294,17 @@
         </div>
       </section>
 
-      <!-- SCRIPTS -->
-      <section class="view" data-view="projects">
-        <article class="card">
-          <div class="panel-head"><h3>Nuevo proyecto</h3></div>
-          <form id="formProject" class="proj-form" autocomplete="off">
-            <input id="pjName" class="field" type="text" maxlength="40" placeholder="Nombre del proyecto" aria-label="Nombre del proyecto" required>
-            <button class="btn" type="submit">Crear proyecto</button>
-          </form>
-          <p class="hint" style="margin-top:10px">Agrupa scripts. En el bot, /whitelist con un proyecto da acceso a todos sus scripts.</p>
-        </article>
-        <div id="pjGroups" class="proj-groups"></div>
-      </section>
-
+      <!-- PROYECTOS Y SCRIPTS -->
       <section class="view" data-view="scripts">
         <div class="section-head">
           <div>
-            <h2>Mis scripts</h2>
-            <p>Sube tu código, elige la protección y copia el loader para tu juego.</p>
+            <h2>Mis proyectos</h2>
+            <p>Crea un proyecto y dentro de él tus scripts. Cada proyecto agrupa sus scripts y sus keys.</p>
           </div>
-          <button class="btn" data-open="script">+ Nuevo script</button>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button class="btn" data-open="project">+ Nuevo proyecto</button>
+            <button class="btn ghost" data-open="script">+ Nuevo script</button>
+          </div>
         </div>
         <div class="script-grid" id="scriptsGrid" aria-live="polite"></div>
       </section>
@@ -627,6 +603,14 @@
 
         <div class="grid-stats profile-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
           <article class="card photo-card">
+            <div class="photo-card-head"><h3>Tema del panel</h3><span class="badge neutral">Ajustes</span></div>
+            <p class="photo-card-sub">Elige cómo se ve tu panel. Se guarda en este navegador.</p>
+            <div class="theme-pick">
+              <label class="theme-opt"><input type="radio" name="vaTheme" value="christmas"><span><strong>Christmas Mode</strong><small>El tema de siempre</small></span></label>
+              <label class="theme-opt"><input type="radio" name="vaTheme" value="basic"><span><strong>Basic Mode</strong><small>Plata y negro, profesional</small></span></label>
+            </div>
+          </article>
+          <article class="card photo-card">
             <div class="photo-card-head"><h3>Foto de perfil</h3><span class="badge neutral">Tu cuenta</span></div>
             <p class="photo-card-sub">Sale en el panel de tus scripts cuando los compradores abren tu panel en Discord.</p>
             <div class="photo-card-body">
@@ -684,10 +668,35 @@
           </form>
           <div id="whList" style="margin-top:16px"></div>
         </article>
-        <article class="card" style="margin-top:14px">
-          <h3>Actividad reciente</h3>
-          <p style="margin:6px 0 14px;font-size:14px;color:var(--text-soft);">Canjes de plan y últimos eventos de tus scripts. Los eventos de scripts se guardan 24 horas.</p>
-          <div id="pfActivity" class="activity-list"></div>
+      </section>
+
+      <section class="view" data-view="rewards">
+        <article class="card">
+          <h3>Canjear recompensa</h3>
+          <p class="hint">Canjea un código y recibes una key al instante. Es una key en stock: el tiempo empieza con la primera ejecución.</p>
+          <form id="rewardsRedeemForm">
+            <div class="input-group">
+              <label for="rewardsCode">Código</label>
+              <input id="rewardsCode" class="field block" maxlength="40" placeholder="REWARD-CODE" autocomplete="off">
+            </div>
+            <div class="form-actions"><button type="submit" class="btn">Canjear</button></div>
+          </form>
+          <div id="rewardsResult" hidden></div>
+        </article>
+        <article class="card" id="rewardsOwnerCard" hidden>
+          <h3>Crear recompensa</h3>
+          <p class="hint">El código regala una key del script elegido. Define cuántos días de key da y cuántas veces se puede canjear.</p>
+          <form id="rewardsForm">
+            <div class="input-group"><label for="rwCode">Código</label><input id="rwCode" class="field block" maxlength="40" placeholder="BIENVENIDA-2026" autocomplete="off"></div>
+            <div class="input-group"><label for="rwScript">Script</label><select id="rwScript" class="field block"></select></div>
+            <div class="input-group"><label for="rwDays">Días de key</label><input id="rwDays" class="field block" type="number" min="1" max="3650" value="30"></div>
+            <div class="input-group"><label for="rwUses">Usos máximos</label><input id="rwUses" class="field block" type="number" min="1" max="10000" value="1"></div>
+            <div class="form-actions"><button type="submit" class="btn">Crear recompensa</button></div>
+          </form>
+        </article>
+        <article class="card" id="rewardsListCard" hidden>
+          <h3>Recompensas creadas</h3>
+          <div id="rewardsList"></div>
         </article>
       </section>
 
@@ -826,9 +835,9 @@
 
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
+<script src="/langs.js"></script>
 <script src="/i18n.js"></script>
 <script src="/dashboard.js"></script>
   <div id="native-ad" class="native-ad" style="max-width:720px;margin:28px auto 8px;padding:0 16px;box-sizing:border-box" aria-label="Publicidad"></div>
-  <script src="/ads-native.js" defer></script>
 </body>
 </html>
